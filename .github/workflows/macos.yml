@@ -4,6 +4,11 @@ on:
     branches: [main, 'codex/cargo-workspace']
   pull_request:
   workflow_dispatch:
+    inputs:
+      sign:
+        description: Sign and notarize the packages
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -34,7 +39,20 @@ jobs:
         run: cargo clippy --workspace --locked --all-targets -- -D warnings
       - name: Packaging dependencies
         run: brew install librsvg
+      - name: Apple signing credentials
+        if: github.event_name == 'workflow_dispatch' && inputs.sign
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: ./scripts/package/macos-signing-setup.sh
       - name: Package
+        env:
+          APPLE_REQUIRE_SIGNING: ${{ github.event_name == 'workflow_dispatch' && inputs.sign && '1' || '0' }}
+          APPLE_NOTARIZE: ${{ github.event_name == 'workflow_dispatch' && inputs.sign && '1' || '0' }}
         run: ./scripts/package/macos.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -44,3 +62,8 @@ jobs:
             target/release/bundle/Sidedoor-macos-arm64.dmg
             target/release/bundle/Sidedoor-macos-arm64.*.sha256
           if-no-files-found: error
+      - name: Remove Apple signing credentials
+        if: always() && env.APPLE_SIGNING_DIR != ''
+        run: |
+          security delete-keychain "$APPLE_SIGNING_DIR/signing.keychain-db" || true
+          rm -rf "$APPLE_SIGNING_DIR"

@@ -4,9 +4,8 @@
 #   scripts/package/macos.sh            build the bundle
 #   scripts/package/macos.sh --install  also copy it to /Applications and open it
 #
-# The bundle is signed ad hoc, which is enough to run it on this Mac.
-# Distributing it to other Macs needs a Developer ID signature and
-# notarization.
+# Local builds use ad hoc signing. APPLE_SIGN_IDENTITY enables Developer ID
+# signing; APPLE_NOTARIZE=1 also notarizes the app and its disk image.
 set -eu
 
 cd "$(dirname "$0")/../.."
@@ -34,8 +33,6 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "target/release/$EXECUTABLE" "$APP/Contents/MacOS/$EXECUTABLE"
 cp "$BUN_BIN" "$APP/Contents/MacOS/bun"
 chmod +x "$APP/Contents/MacOS/bun"
-# Keep Bun's JIT entitlements when signing its nested executable.
-codesign --force --sign - --preserve-metadata=entitlements,flags,runtime --timestamp=none "$APP/Contents/MacOS/bun"
 
 # Built-ins are ordinary plugins, bundled so they require no writable SDK
 # links or dependencies inside the signed app.
@@ -100,9 +97,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-echo "Signing (ad hoc)…"
-codesign --force --sign - --timestamp=none "$APP"
-codesign --verify --strict "$APP"
+./scripts/package/macos-sign.sh "$APP"
 
 echo "Built $APP ($VERSION, build $BUILD)"
 

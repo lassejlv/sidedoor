@@ -69,9 +69,9 @@ Linux packages are built on Ubuntu 24.04; RPM dependencies also require a
 distribution with compatible library versions, an X11 session, and a Vulkan driver.
 
 > [!NOTE]
-> The macOS app isn't notarized yet. The first time, right-click it and
-> choose **Open**, or run
-> `xattr -dr com.apple.quarantine /Applications/Sidedoor.app`.
+> macOS releases built with the current workflow are signed and notarized.
+> Older releases may still be unsigned. See the
+> [macOS signing guide](docs/macos-signing.md) for setup and verification.
 
 ## Using it
 

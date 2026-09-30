@@ -56,15 +56,36 @@ jobs:
           key: release
           cache-on-failure: true
 
+      - name: Apple signing credentials
+        if: runner.os == 'macOS'
+        env:
+          APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+        run: ./scripts/package/macos-signing-setup.sh
+
       - name: Package (macOS)
         if: runner.os == 'macOS'
         shell: bash
+        env:
+          APPLE_REQUIRE_SIGNING: '1'
+          APPLE_NOTARIZE: '1'
         run: |
           brew install librsvg
           SIDEDOOR_VERSION="${TAG#v}" ./scripts/package/macos.sh
           cd target/release/bundle
           shasum -a 256 -c Sidedoor-macos-arm64.zip.sha256 Sidedoor-macos-arm64.dmg.sha256
           gh release upload "$TAG" Sidedoor-macos-arm64.{zip,dmg} Sidedoor-macos-arm64.{zip,dmg}.sha256 --clobber
+
+      - name: Remove Apple signing credentials
+        if: always() && runner.os == 'macOS' && env.APPLE_SIGNING_DIR != ''
+        shell: bash
+        run: |
+          security delete-keychain "$APPLE_SIGNING_DIR/signing.keychain-db" || true
+          rm -rf "$APPLE_SIGNING_DIR"
 
       - name: Package (Linux)
         if: runner.os == 'Linux'
