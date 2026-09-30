@@ -22,6 +22,15 @@ security unlock-keychain -p "$password" "$keychain"
 security import "$signing_dir/developer-id.p12" -k "$keychain" \
     -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+# codesign resolves the private key through the user keychain search list even
+# when --keychain selects the certificate. Keep the runner's existing entries.
+keychains=("$keychain")
+while IFS= read -r existing; do
+    existing=${existing#*\"}
+    existing=${existing%\"*}
+    [[ "$existing" == "$keychain" ]] || keychains+=("$existing")
+done < <(security list-keychains -d user)
+security list-keychains -d user -s "${keychains[@]}"
 identity=$(security find-identity -v -p codesigning "$keychain" |
     awk -v team="($APPLE_TEAM_ID)" '$0 ~ /Developer ID Application:/ && index($0, team) {print $2}')
 [[ "$identity" =~ ^[A-Fa-f0-9]{40}$ ]] || die "Expected one Developer ID Application identity for team $APPLE_TEAM_ID."
